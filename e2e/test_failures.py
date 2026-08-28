@@ -39,9 +39,7 @@ def _stop(service: str) -> None:
 
 def _start(service: str) -> None:
     subprocess.run(["docker", "compose", "start", service], cwd=REPO_ROOT, check=True)
-    # Give dependent services time to re-register via their heartbeat
-    # (REGISTRATION_HEARTBEAT_SECONDS=3 in this test run — see conftest.py)
-    # before the next test relies on them being registered again.
+    # Give the BFA a moment to be back and (if it restarted) re-pull the catalog.
     time.sleep(6)
 
 

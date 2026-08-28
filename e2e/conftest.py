@@ -57,13 +57,10 @@ def _wait_until_healthy(timeout_seconds: float = 180) -> None:
 def docker_stack():
     # Force deterministic mock LLM regardless of any local .env (docker compose
     # auto-loads .env, which may set LLM_PROVIDER=google for manual testing).
-    # A short registration heartbeat lets services heal quickly in the
-    # BFA-unavailable failure test, well within the test's own wait window.
     env = {
         **os.environ,
         "SIMULATION_ENABLED": "false",
         "LLM_PROVIDER": "mock",
-        "REGISTRATION_HEARTBEAT_SECONDS": "3",
     }
     _compose("up", "--build", "-d", env=env)
     try:
