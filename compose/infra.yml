@@ -35,7 +35,8 @@ services:
 
   mosquitto:
     build:
-      context: ./mosquitto
+      # relative to this file (compose/), which is where `include` resolves it
+      context: ../mosquitto
     command: >
       sh -c "rm -f /mosquitto/config/passwd &&
              mosquitto_passwd -b -c /mosquitto/config/passwd $$MQTT_USERNAME $$MQTT_PASSWORD &&
