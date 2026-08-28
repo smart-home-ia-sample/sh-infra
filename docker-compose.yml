@@ -1,0 +1,224 @@
+# Smart Home AI — full stack from published images (GitHub Packages / ghcr.io).
+#
+# main branch: this file. Set GHCR_OWNER (your org/user); optionally SH_TAG.
+#   cp .env.example .env  &&  docker compose up -d
+#
+# dev branch: docker-compose.yml is the *build* variant instead — every service
+# is built from ../sh-<name> (run ./bootstrap.sh first). docker-compose.build.yml
+# is that same variant, kept on both branches for ad-hoc `-f` use.
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      OLLAMA_MODEL: ${LLM_MODEL:-llama3.1:8b}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        ollama serve &
+        until ollama list >/dev/null 2>&1; do sleep 1; done
+        ollama pull "${LLM_MODEL:-llama3.1:8b}" \
+          || echo "ollama: pull failed; run 'docker compose exec ollama ollama pull ${LLM_MODEL:-llama3.1:8b}' manually"
+        wait
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list | grep -qF '${LLM_MODEL:-llama3.1:8b}' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 600s
+
+  bff:
+    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER to your GitHub org/user}/sh-bff:${SH_TAG:-latest}
+    ports:
+      - "8080:8080"
+    environment:
+      ORCHESTRATOR_URL: http://orchestrator:8500
+      JWT_SECRET: ${JWT_SECRET:-dev-only-insecure-secret-change-me-please-0123456789}
+      DEMO_USER: ${DEMO_USER:-demo}
+      DB_URL: ${DB_URL:-jdbc:h2:file:/app/data/bff;AUTO_SERVER=TRUE}
+      DB_USERNAME: ${DB_USERNAME:-sa}
+      DB_PASSWORD: ${DB_PASSWORD:-}
+      MQTT_HOST: mosquitto
+      MQTT_USERNAME: ${MQTT_USERNAME:-smarthome}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-smarthome}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - bff_data:/app/data
+    depends_on:
+      orchestrator:
+        condition: service_started
+      mosquitto:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  bfa:
+    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER}/sh-bfa:${SH_TAG:-latest}
+    ports:
+      - "8000:8000"
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  mosquitto:
+    build:
+      context: ./mosquitto
+    command: >
+      sh -c "rm -f /mosquitto/config/passwd &&
+             mosquitto_passwd -b -c /mosquitto/config/passwd $$MQTT_USERNAME $$MQTT_PASSWORD &&
+             chown mosquitto:mosquitto /mosquitto/config/passwd &&
+             exec mosquitto -c /mosquitto/config/mosquitto.conf"
+    environment:
+      MQTT_USERNAME: ${MQTT_USERNAME:-smarthome}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-smarthome}
+    ports:
+      - "1883:1883"
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -u $$MQTT_USERNAME -P $$MQTT_PASSWORD -t '$$SYS/#' -C 1 -W 3"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  device-sim:
+    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER}/sh-device-sim:${SH_TAG:-latest}
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_USERNAME: ${MQTT_USERNAME:-smarthome}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-smarthome}
+      SIM_EVENTS_ENABLED: ${SIM_EVENTS_ENABLED:-true}
+      SIM_EVENT_INTERVAL_SECONDS: ${SIM_EVENT_INTERVAL_SECONDS:-20}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+
+  home-mcp:
+    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER}/sh-mcp:${SH_TAG:-latest}
+    ports:
+      - "8100:8100"
+    environment:
+      BFA_URL: http://bfa:8000
+      BFF_URL: http://bff:8080
+      DEMO_USER: ${DEMO_USER:-demo}
+      DEMO_PASS: ${DEMO_PASS:-demo}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      bfa:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8100/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  orchestrator:
+    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER}/sh-orchestrator:${SH_TAG:-latest}
+    ports:
+      - "8500:8500"
+    environment:
+      BFA_URL: http://bfa:8000
+      BFF_URL: http://bff:8080
+      DEMO_USER: ${DEMO_USER:-demo}
+      DEMO_PASS: ${DEMO_PASS:-demo}
+      PORT: "8500"
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LLM_PROVIDER: ${LLM_PROVIDER}
+      LLM_MODEL: ${LLM_MODEL}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+    depends_on:
+      bfa:
+        condition: service_healthy
+      security:
+        condition: service_healthy
+      environment:
+        condition: service_healthy
+      energy:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8500/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  security:
+    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER}/sh-agent-security:${SH_TAG:-latest}
+    ports:
+      - "8200:8200"
+    environment:
+      BFA_URL: http://bfa:8000
+      PORT: "8200"
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      bfa:
+        condition: service_healthy
+      home-mcp:
+        condition: service_healthy
+      energy:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8200/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  environment:
+    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER}/sh-agent-environment:${SH_TAG:-latest}
+    ports:
+      - "8300:8300"
+    environment:
+      BFA_URL: http://bfa:8000
+      PORT: "8300"
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      bfa:
+        condition: service_healthy
+      home-mcp:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8300/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  energy:
+    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER}/sh-agent-energy:${SH_TAG:-latest}
+    ports:
+      - "8400:8400"
+    environment:
+      BFA_URL: http://bfa:8000
+      PORT: "8400"
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      bfa:
+        condition: service_healthy
+      home-mcp:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8400/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  ollama_data:
+  bff_data:
