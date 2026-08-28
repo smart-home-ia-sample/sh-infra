@@ -10,7 +10,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Build the stack from the sibling checkouts so the suite tests local code, not
 # the published images. `./bootstrap.sh` must have cloned the siblings.
-COMPOSE_FILES = ["-f", "docker-compose.yml", "-f", "docker-compose.build.yml"]
+COMPOSE_FILES = ["-f", "docker-compose.yml", "-f", "docker-compose.build.yml", "-f", "docker-compose.local.yml"]
 
 # Overridable so this suite can also run from inside a helper container
 # (docker-in-docker via the host's socket) against `host.docker.internal`;
