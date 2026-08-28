@@ -13,10 +13,20 @@
 #     sh-mcp/
 #     sh-device-sim/
 #
-# `./bootstrap.sh` clones any that are missing. `sh-common` is NOT cloned
-# — it is pulled from the package registry by each Python image's build.
-# `sh-frontend` is NOT cloned — the BFF image pulls its built SPA from
-# FRONT_DIST_URL (a dist.tar.gz release asset); leave it empty for an API-only BFF.
+# `./bootstrap.sh` clones any that are missing. Both `sh-common` AND
+# `sh-frontend` are expected as siblings here: every Python image is built with
+# SH_COMMON_SOURCE=local (installs sh-common from the `sh_common` build context),
+# and the BFF image is built with FRONT_SOURCE=local (builds the SPA from the
+# `sh_frontend` build context and bakes it into the jar). No registry, no
+# GitHub releases, no FRONT_DIST_URL.
+
+# Shared build fragment for the Python services: install sh-common from the
+# local sibling checkout instead of its GitHub repo.
+x-shcommon-build: &shcommon-build
+  additional_contexts:
+    sh_common: ../sh-common
+  args:
+    SH_COMMON_SOURCE: local
 
 services:
   ollama:
@@ -55,9 +65,11 @@ services:
   bff:
     build:
       context: ../sh-bff
+      additional_contexts:
+        # build the SPA straight from the sibling checkout — no release asset
+        sh_frontend: ../sh-frontend
       args:
-        # a dist.tar.gz release asset from sh-frontend; empty -> API-only
-        FRONT_DIST_URL: ${FRONT_DIST_URL:-}
+        FRONT_SOURCE: local
     ports:
       - "8080:8080"
     environment:
@@ -87,6 +99,7 @@ services:
   bfa:
     build:
       context: ../sh-bfa
+      <<: *shcommon-build
     ports:
       - "8000:8000"
     environment:
@@ -133,6 +146,7 @@ services:
   home-mcp:
     build:
       context: ../sh-mcp
+      <<: *shcommon-build
     ports:
       - "8100:8100"
     environment:
@@ -153,6 +167,7 @@ services:
   orchestrator:
     build:
       context: ../sh-orchestrator
+      <<: *shcommon-build
     ports:
       - "8500:8500"
     environment:
@@ -184,6 +199,7 @@ services:
   security:
     build:
       context: ../sh-agent-security
+      <<: *shcommon-build
     ports:
       - "8200:8200"
     environment:
@@ -206,6 +222,7 @@ services:
   environment:
     build:
       context: ../sh-agent-environment
+      <<: *shcommon-build
     ports:
       - "8300:8300"
     environment:
@@ -226,6 +243,7 @@ services:
   energy:
     build:
       context: ../sh-agent-energy
+      <<: *shcommon-build
     ports:
       - "8400:8400"
     environment:

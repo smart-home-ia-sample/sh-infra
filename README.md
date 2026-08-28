@@ -26,27 +26,28 @@ a `vX.Y.Z` tag (GitHub Packages has no PyPI registry).
 
 | branch | `docker-compose.yml` | needs |
 |--------|----------------------|-------|
-| **main** | pulls `ghcr.io/$GHCR_OWNER/sh-*:$SH_TAG` | just this repo + `GHCR_OWNER` in `.env` |
-| **dev**  | builds every service from `../sh-<name>` | all service repos cloned as siblings (`./bootstrap.sh`) |
+| **main** | pulls `ghcr.io/$GHCR_OWNER/sh-*:$SH_TAG` (`GHCR_OWNER` defaults to `smart-home-ia-sample`) | just this repo |
+| **dev**  | builds the 8 services from `../sh-<name>`; `sh-common` / SPA resolved from GitHub | the 8 service repos as siblings (`./bootstrap.sh`) |
 
-`docker-compose.build.yml` (the build variant) is kept on both branches for
-ad-hoc use: `docker compose -f docker-compose.build.yml up --build`.
+`docker-compose.build.yml` is the **fully-offline** variant — every image
+(including `sh-common` and the SPA) built from sibling checkouts, no registry.
+Kept on both branches: `docker compose -f docker-compose.build.yml up --build`.
 
 ## Run it — main (published images)
 
 ```sh
-cp .env.example .env          # set GHCR_OWNER; LLM_PROVIDER; FRONT_DIST_URL
+cp .env.example .env          # optional: override GHCR_OWNER / LLM_PROVIDER / secrets
 docker compose up -d
 # http://localhost:8080   (demo / demo)
 ```
 
-## Run it — dev (build from source)
+## Run it — dev / offline (build from source)
 
 ```sh
-git checkout dev
-ORG=<your-org> ./bootstrap.sh   # clones the service repos as siblings
+./bootstrap.sh                 # clones every sh-* repo as a sibling (ORG defaults)
 cp .env.example .env
-docker compose up --build -d
+git checkout dev && docker compose up --build -d
+# or, from any branch: docker compose -f docker-compose.build.yml up --build -d
 ```
 
 Sibling layout after `bootstrap.sh`:
@@ -54,6 +55,7 @@ Sibling layout after `bootstrap.sh`:
 ```
 smart-home/
   sh-infra/   <- here
+  sh-common/  sh-frontend/
   sh-bff/  sh-bfa/  sh-orchestrator/
   sh-agent-{security,environment,energy}/
   sh-mcp/  sh-device-sim/
@@ -68,6 +70,13 @@ pytest            # forces LLM_PROVIDER=mock, brings the stack up/down itself
 ```
 
 Needs Docker. `e2e/conftest.py` runs `docker compose` from this repo root.
+
+## CI
+
+| Workflow | Runs |
+| --- | --- |
+| `ci` | `docker compose config` on both compose variants (PR + `main`) |
+| `codeql` | CodeQL analysis (Python — the e2e suite) on PRs, `main`, and weekly |
 
 ## Docs
 

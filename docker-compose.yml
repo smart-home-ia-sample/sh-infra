@@ -40,7 +40,7 @@ services:
       start_period: 600s
 
   bff:
-    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER to your GitHub org/user}/sh-bff:${SH_TAG:-latest}
+    image: ghcr.io/${GHCR_OWNER:-smart-home-ia-sample}/sh-bff:${SH_TAG:-latest}
     ports:
       - "8080:8080"
     environment:
@@ -68,7 +68,7 @@ services:
       retries: 10
 
   bfa:
-    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER}/sh-bfa:${SH_TAG:-latest}
+    image: ghcr.io/${GHCR_OWNER:-smart-home-ia-sample}/sh-bfa:${SH_TAG:-latest}
     ports:
       - "8000:8000"
     environment:
@@ -99,7 +99,7 @@ services:
       retries: 10
 
   device-sim:
-    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER}/sh-device-sim:${SH_TAG:-latest}
+    image: ghcr.io/${GHCR_OWNER:-smart-home-ia-sample}/sh-device-sim:${SH_TAG:-latest}
     environment:
       MQTT_HOST: mosquitto
       MQTT_USERNAME: ${MQTT_USERNAME:-smarthome}
@@ -112,7 +112,7 @@ services:
         condition: service_healthy
 
   home-mcp:
-    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER}/sh-mcp:${SH_TAG:-latest}
+    image: ghcr.io/${GHCR_OWNER:-smart-home-ia-sample}/sh-mcp:${SH_TAG:-latest}
     ports:
       - "8100:8100"
     environment:
@@ -131,7 +131,7 @@ services:
       retries: 5
 
   orchestrator:
-    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER}/sh-orchestrator:${SH_TAG:-latest}
+    image: ghcr.io/${GHCR_OWNER:-smart-home-ia-sample}/sh-orchestrator:${SH_TAG:-latest}
     ports:
       - "8500:8500"
     environment:
@@ -161,7 +161,7 @@ services:
       retries: 5
 
   security:
-    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER}/sh-agent-security:${SH_TAG:-latest}
+    image: ghcr.io/${GHCR_OWNER:-smart-home-ia-sample}/sh-agent-security:${SH_TAG:-latest}
     ports:
       - "8200:8200"
     environment:
@@ -182,7 +182,7 @@ services:
       retries: 5
 
   environment:
-    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER}/sh-agent-environment:${SH_TAG:-latest}
+    image: ghcr.io/${GHCR_OWNER:-smart-home-ia-sample}/sh-agent-environment:${SH_TAG:-latest}
     ports:
       - "8300:8300"
     environment:
@@ -201,7 +201,7 @@ services:
       retries: 5
 
   energy:
-    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER}/sh-agent-energy:${SH_TAG:-latest}
+    image: ghcr.io/${GHCR_OWNER:-smart-home-ia-sample}/sh-agent-energy:${SH_TAG:-latest}
     ports:
       - "8400:8400"
     environment:

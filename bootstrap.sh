@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
-# Clone every service repo as a sibling of this one, so `docker compose` can
-# build each from its own directory.
+# Clone every repo this stack builds from as a sibling of this one, so
+# `docker compose` (dev branch, or docker-compose.build.yml) can build each
+# from its own directory.
 set -euo pipefail
 
-ORG="${ORG:?set ORG to your GitHub org, e.g. ORG=my-org ./bootstrap.sh}"
+ORG="${ORG:-smart-home-ia-sample}"
 HOST="${GIT_HOST:-github.com}"
 PARENT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 REPOS=(
+  sh-common
+  sh-frontend
   sh-bff
   sh-bfa
   sh-orchestrator

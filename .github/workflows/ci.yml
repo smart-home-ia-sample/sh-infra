@@ -1,0 +1,17 @@
+name: ci
+on:
+  push: { branches: [main] }
+  pull_request:
+
+jobs:
+  # Validate both compose variants parse and interpolate.
+  compose:
+    runs-on: ubuntu-latest
+    env:
+      GHCR_OWNER: smart-home-ia-sample
+    steps:
+      - uses: actions/checkout@v4
+      - name: docker-compose.yml (published images)
+        run: docker compose -f docker-compose.yml config -q
+      - name: docker-compose.build.yml (build variant)
+        run: docker compose -f docker-compose.build.yml config -q
