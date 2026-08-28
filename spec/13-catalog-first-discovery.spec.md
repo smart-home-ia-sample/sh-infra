@@ -1,7 +1,10 @@
 # 13 — Catalog-first discovery, thin BFA
 
-Status: **agreed, not yet implemented.** Supersedes the registry parts of
-`03-bfa-and-registration`.
+Status: **mostly implemented** (2026-08-28). Supersedes the registry parts of
+`03-bfa-and-registration`. Remaining: the catalog-first `interpret` rewrite
+(decision 4) — the orchestrator still uses the hardcoded `DEVICE_VERBS` list;
+everything else (thin BFA, pull catalog, `/resolve` logical names, no
+self-registration, `sh-common` v0.2.0) is done and unit-green.
 
 ## Why
 
