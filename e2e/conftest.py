@@ -8,6 +8,10 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
+# Build the stack from the sibling checkouts so the suite tests local code, not
+# the published images. `./bootstrap.sh` must have cloned the siblings.
+COMPOSE_FILES = ["-f", "docker-compose.yml", "-f", "docker-compose.build.yml"]
+
 # Overridable so this suite can also run from inside a helper container
 # (docker-in-docker via the host's socket) against `host.docker.internal`;
 # defaults to `localhost` for the normal case (CI runner / host machine).
@@ -27,8 +31,8 @@ BASE_URLS = {
 HEALTH_PATH = {"bff": "/actuator/health"}
 
 
-def _compose(*args: str) -> None:
-    subprocess.run(["docker", "compose", *args], cwd=REPO_ROOT, check=True)
+def _compose(*args: str, env: dict | None = None) -> None:
+    subprocess.run(["docker", "compose", *COMPOSE_FILES, *args], cwd=REPO_ROOT, check=True, env=env)
 
 
 def _wait_until_healthy(timeout_seconds: float = 180) -> None:
@@ -61,12 +65,7 @@ def docker_stack():
         "LLM_PROVIDER": "mock",
         "REGISTRATION_HEARTBEAT_SECONDS": "3",
     }
-    subprocess.run(
-        ["docker", "compose", "up", "--build", "-d"],
-        cwd=REPO_ROOT,
-        check=True,
-        env=env,
-    )
+    _compose("up", "--build", "-d", env=env)
     try:
         _wait_until_healthy()
         _warm_up()

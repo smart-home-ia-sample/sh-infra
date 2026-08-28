@@ -22,32 +22,37 @@ Container images publish to **GitHub Packages** (`ghcr.io/<owner>/sh-*`) from ea
 repo's CI on `main`. `sh-common` publishes its wheel as a GitHub Release asset on
 a `vX.Y.Z` tag (GitHub Packages has no PyPI registry).
 
-## Branches
+## Compose layout
 
-| branch | `docker-compose.yml` | needs |
-|--------|----------------------|-------|
-| **main** | pulls `ghcr.io/$GHCR_OWNER/sh-*:$SH_TAG` (`GHCR_OWNER` defaults to `smart-home-ia-sample`) | just this repo |
-| **dev**  | builds the 8 services from `../sh-<name>`; `sh-common` / SPA resolved from GitHub | the 8 service repos as siblings (`./bootstrap.sh`) |
+One branch. The stack is composed from files, not branches:
 
-`docker-compose.build.yml` is the **fully-offline** variant — every image
-(including `sh-common` and the SPA) built from sibling checkouts, no registry.
-Kept on both branches: `docker compose -f docker-compose.build.yml up --build`.
+```
+docker-compose.yml          include: compose/{infra,core,agents}.yml   (published images)
+docker-compose.build.yml    override: build each sh-* service from ../sh-<name>
+docker-compose.local.yml    override: also build sh-common + the SPA from siblings (offline)
+compose/
+  infra.yml    ollama, mosquitto
+  core.yml     bff, bfa, home-mcp, device-sim
+  agents.yml   orchestrator + the security / environment / energy A2A workers
+```
 
-## Run it — main (published images)
+## Run it
 
+**Published images** (default — `GHCR_OWNER` defaults to `smart-home-ia-sample`):
 ```sh
-cp .env.example .env          # optional: override GHCR_OWNER / LLM_PROVIDER / secrets
 docker compose up -d
 # http://localhost:8080   (demo / demo)
 ```
 
-## Run it — dev / offline (build from source)
-
+**Build from your checkouts:**
 ```sh
-./bootstrap.sh                 # clones every sh-* repo as a sibling (ORG defaults)
-cp .env.example .env
-git checkout dev && docker compose up --build -d
-# or, from any branch: docker compose -f docker-compose.build.yml up --build -d
+./bootstrap.sh                 # clones every sh-* repo as a sibling
+docker compose -f docker-compose.yml -f docker-compose.build.yml up --build -d
+```
+
+**Fully offline** (also builds `sh-common` + the SPA from siblings):
+```sh
+docker compose -f docker-compose.yml -f docker-compose.build.yml -f docker-compose.local.yml up --build -d
 ```
 
 Sibling layout after `bootstrap.sh`:
@@ -75,7 +80,7 @@ Needs Docker. `e2e/conftest.py` runs `docker compose` from this repo root.
 
 | Workflow | Runs |
 | --- | --- |
-| `ci` | `docker compose config` on both compose variants (PR + `main`) |
+| `ci` | `docker compose config` on all three modes — base, `+build`, `+local` (PR + `main`) |
 | `codeql` | CodeQL analysis (Python — the e2e suite) on PRs, `main`, and weekly |
 
 ## Docs

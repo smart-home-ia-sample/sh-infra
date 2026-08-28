@@ -1,0 +1,78 @@
+# The agent layer: the orchestrator (conversation engine / coordinator — the
+# BFF's single entry point for a conversation) plus the three A2A workers it
+# dispatches to. Only the workers are homogeneous, so only they share the anchor.
+
+x-agent-env: &agent-env
+  BFA_URL: http://bfa:8000
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+x-agent: &agent
+  depends_on:
+    bfa:
+      condition: service_healthy
+    home-mcp:
+      condition: service_healthy
+  healthcheck:
+    # port-agnostic: each worker sets its own PORT
+    test: ["CMD-SHELL", "python -c \"import os,urllib.request; urllib.request.urlopen('http://localhost:'+os.environ['PORT']+'/health')\""]
+    interval: 5s
+    timeout: 3s
+    retries: 5
+
+services:
+  orchestrator:
+    image: ghcr.io/${GHCR_OWNER:-smart-home-ia-sample}/sh-orchestrator:${SH_TAG:-latest}
+    ports:
+      - "8500:8500"
+    environment:
+      BFA_URL: http://bfa:8000
+      BFF_URL: http://bff:8080
+      DEMO_USER: ${DEMO_USER:-demo}
+      DEMO_PASS: ${DEMO_PASS:-demo}
+      PORT: "8500"
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      LLM_MODEL: ${LLM_MODEL:-llama3.1:8b}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+    depends_on:
+      bfa:
+        condition: service_healthy
+      security:
+        condition: service_healthy
+      environment:
+        condition: service_healthy
+      energy:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8500/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  security:
+    <<: *agent
+    image: ghcr.io/${GHCR_OWNER:-smart-home-ia-sample}/sh-agent-security:${SH_TAG:-latest}
+    ports:
+      - "8200:8200"
+    environment:
+      <<: *agent-env
+      PORT: "8200"
+
+  environment:
+    <<: *agent
+    image: ghcr.io/${GHCR_OWNER:-smart-home-ia-sample}/sh-agent-environment:${SH_TAG:-latest}
+    ports:
+      - "8300:8300"
+    environment:
+      <<: *agent-env
+      PORT: "8300"
+
+  energy:
+    <<: *agent
+    image: ghcr.io/${GHCR_OWNER:-smart-home-ia-sample}/sh-agent-energy:${SH_TAG:-latest}
+    ports:
+      - "8400:8400"
+    environment:
+      <<: *agent-env
+      PORT: "8400"

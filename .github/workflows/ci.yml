@@ -4,14 +4,14 @@ on:
   pull_request:
 
 jobs:
-  # Validate both compose variants parse and interpolate.
+  # Validate the compose model parses and interpolates in all three modes.
   compose:
     runs-on: ubuntu-latest
-    env:
-      GHCR_OWNER: smart-home-ia-sample
     steps:
       - uses: actions/checkout@v4
-      - name: docker-compose.yml (published images)
+      - name: base (published images)
         run: docker compose -f docker-compose.yml config -q
-      - name: docker-compose.build.yml (build variant)
-        run: docker compose -f docker-compose.build.yml config -q
+      - name: + build (from siblings)
+        run: docker compose -f docker-compose.yml -f docker-compose.build.yml config -q
+      - name: + local (fully offline)
+        run: docker compose -f docker-compose.yml -f docker-compose.build.yml -f docker-compose.local.yml config -q
