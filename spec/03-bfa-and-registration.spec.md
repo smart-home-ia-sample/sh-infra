@@ -1,4 +1,12 @@
 # BFA and Registration
+
+> **Superseded by `13-catalog-first-discovery.spec.md` (2026-08-29).** There is
+> no registration path anymore: no `POST /agents/register` / `POST /mcp/register`,
+> no heartbeat TTL, no round-robin instance pick. The BFA now *pulls* each
+> service's descriptor from `CATALOG_SOURCES` and `/resolve*` returns logical
+> service names. Only the BM25 ranking (`search.py`) survives. Kept here as the
+> original design record.
+
 Agents and MCP servers register when ready and retry with exponential backoff.
 
 POST /agents/register: name, endpoint, capabilities, protocol, version.

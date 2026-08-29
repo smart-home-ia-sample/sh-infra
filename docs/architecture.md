@@ -12,7 +12,7 @@ Frontend (React)
 Orchestrator (LangGraph + LangChain)
    │  descoberta de agentes/MCP por capability
    ▼
-BFA (registro em memória, roteamento por capability)
+BFA (catálogo puxado de CATALOG_SOURCES, ranking BM25 por capability)
    │
    ├──▶ Security / Environment / Energy (A2A, JSON-RPC via a2a-sdk)
    │        │
@@ -22,16 +22,17 @@ BFA (registro em memória, roteamento por capability)
 ```
 
 O Orchestrator nunca fala com Security/Environment/Energy/Home MCP por
-endereço fixo: descobre cada um via BFA (`GET /agents?capability=...` ou
-`GET /mcp`) a cada execução do grafo, e o BFA resolve o `endpoint` de cada
-serviço pelo IP de origem da própria chamada de registro — nenhum serviço
-autodeclara sua própria URL.
+endereço fixo: descobre cada um via BFA (`POST /resolve/agents` ou
+`POST /resolve/tools`) a cada execução do grafo. O BFA devolve o **nome
+lógico** do serviço (`http://{service}`), montado a partir do catálogo que
+ele mesmo puxou de `CATALOG_SOURCES` — nenhum serviço autodeclara nem
+registra sua própria URL.
 
 ## Serviços e portas
 
 | Serviço      | Porta | Protocolo de entrada          | Papel                                             |
 |--------------|-------|--------------------------------|----------------------------------------------------|
-| bfa          | 8000  | REST (FastAPI)                 | Registro e descoberta de serviços por capability   |
+| bfa          | 8000  | REST (FastAPI)                 | Catálogo de capabilities (pull) + `/resolve` BM25  |
 | home-mcp     | 8100  | MCP (streamable-http)          | Estado simulado da casa: tools, resources, prompts |
 | security     | 8200  | A2A (JSON-RPC)                 | Trancar porta, armar alarme, `secure_home`         |
 | environment  | 8300  | A2A (JSON-RPC)                 | Luzes, temperatura, cortinas, `check_environment`  |
@@ -66,16 +67,18 @@ oficial em vez de uma implementação própria:
   `RunFinished/Error`) — o frontend consome via `HttpAgent`, não via um
   esquema de eventos simplificado.
 
-## Robustez do registro (BFA)
+## Catálogo do BFA (catalog-first, spec/13)
 
-O registro do BFA é **em memória** — reinicia zerado se o BFA reiniciar.
-Para não deixar os demais serviços órfãos nesse caso, cada serviço roda
-um heartbeat de re-registro em segundo plano
-(`smart_home_common.run_registration_heartbeat`, padrão a cada 15s,
-configurável via `REGISTRATION_HEARTBEAT_SECONDS`) além do registro
-inicial no startup. Isso é o que permite que a suíte E2E (ver
-[`testing.md`](testing.md)) derrube e suba o BFA no meio dos testes sem
-precisar reiniciar manualmente os outros serviços.
+Não há mais auto-registro nem heartbeat. O BFA é **estado derivado**: no
+boot (e em `POST /refresh`) ele **puxa** o descritor de cada URL listada em
+`CATALOG_SOURCES` — `/.well-known/agent-card.json` para agentes A2A,
+`/tools` para o MCP — e reconstrói o índice BM25. O catálogo pode ser
+recriado do zero a qualquer momento; uma fonte fora do ar no boot é
+re-tentada, não é fatal. `/resolve*` devolve **nomes lógicos de serviço**
+(`http://{service}`), nunca `IP:porta` — a plataforma escolhe a instância.
+Isso é o que permite que a suíte E2E (ver [`testing.md`](testing.md))
+derrube e suba o BFA no meio dos testes: ao voltar, ele re-puxa o catálogo
+sozinho.
 
 ## LangGraph do Orchestrator
 

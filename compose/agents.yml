@@ -7,11 +7,9 @@ x-agent-env: &agent-env
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
 
 x-agent: &agent
-  depends_on:
-    bfa:
-      condition: service_healthy
-    home-mcp:
-      condition: service_healthy
+  # No startup dependencies: the workers self-serve their agent card and hit
+  # the BFA / MCP lazily at request time. The BFA depends on THEM (it pulls
+  # their cards), so a dependency here would be a cycle.
   healthcheck:
     # port-agnostic: each worker sets its own PORT
     test: ["CMD-SHELL", "python -c \"import os,urllib.request; urllib.request.urlopen('http://localhost:'+os.environ['PORT']+'/health')\""]

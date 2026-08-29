@@ -1,7 +1,17 @@
 # 13 — Catalog-first discovery, thin BFA
 
-Status: **agreed, not yet implemented.** Supersedes the registry parts of
-`03-bfa-and-registration`.
+Status: **implemented** (2026-08-29). Supersedes the registry parts of
+`03-bfa-and-registration` and `11-persistence-auth-mqtt` (heartbeat TTL,
+round-robin instance pick, `POST /register`). Shipped: thin BFA (pull catalog,
+`/resolve` logical names), no self-registration anywhere, `sh-common` v0.2.0
+tagged + refs bumped, e2e green.
+
+Decision 4 landed as a **narrower change** than first written (see that section):
+the `interpret` node now derives its device constants from the live topology
+instead of a full BFA-menu-driven rewrite. The `discover` node was **kept**
+(it consults `/resolve/agents` per hop); the "collapse discover" idea is
+deferred. Decision 6 (LLM-through-`sh-common`) remains deferred — no agent
+reasons yet.
 
 ## Why
 
@@ -55,23 +65,39 @@ The caller invokes `http://{service}` and the platform picks the instance. No
 `IP:port`, no instance health in the BFA (readiness probes + endpoint pruning
 cover "currently up").
 
-### 4. Catalog-first orchestration
+### 4. Topology-derived `interpret` (shipped scope)
 
-The `interpret` node stops treating the hardcoded `DEVICE_VERBS` tuple as the
-source of truth:
+The original plan here was a BFA-menu-driven rewrite: `interpret` would `POST
+/resolve` for a ranked capability menu, render it into the LLM prompt, and emit
+`{ capability, service, args }`, collapsing `discover`. That is **deferred** —
+for a fixed ~10-verb vocabulary the ranking round-trip added latency and a
+failure mode for little gain.
 
-1. `POST BFA /resolve { query: <user utterance + short context>, top_k: N }` →
-   the ranked capability menu.
-2. The LLM prompt = system + that menu rendered as the available actions + live
-   home topology + history → structured intent `{ capability, service, args }`
-   (or `chitchat` / `unknown`).
-3. `plan` resolves `device_id` from topology and builds the payload.
-4. `dispatch` calls `service` by logical name.
-5. `validate` checks `EXPECTED_EFFECTS` via MCP — unchanged.
+What shipped instead: `interpret` stops **hardcoding the device inventory**.
+Everything the prompt says about what this house can do is now derived from the
+live topology (`home://devices`), with the hardcoded values kept only as the
+MCP-unreachable fallback:
 
-`discover` collapses (the resolve already named the service). The **mock**
-interpreter keeps a static verb map — it is a deterministic CI stand-in and does
-not call the BFA.
+- **`available_verbs(topology)`** = the interpreter's known verbs ∩ the union of
+  every installed device's announced `actions`. Remove all ACs and
+  `set_temperature` drops out of the verb menu the prompt offers.
+- the system prompt is a **template** (`_SYSTEM_PROMPT_TEMPLATE`) with
+  `<<VERBS>>`, `<<LIGHT_IDS>>`, `<<ALARM_ID>>`, `<<AC_MIN>>`, `<<AC_MAX>>`
+  sentinels filled by `build_system_prompt(topology)` per request.
+- `turn_off_light`'s id list = `type=light` / `dimmable_light` from topology;
+  the alarm id = `type=alarm`; the AC clamp range = the AC's announced
+  `params.set_temperature.{min,max}`.
+
+This needed **`home://devices` to carry two new per-device keys**, both flattened
+from the announced capability descriptor (spec/12): `actions` (the verbs the
+device accepts) and `params` (numeric bounds, e.g.
+`{"set_temperature": {"min": 16, "max": 30}}`).
+
+`discover`, `plan`, `dispatch`, `validate` are unchanged: `discover` still
+consults `POST /resolve/agents` to confirm a provider exists before planning.
+The **mock** interpreter keeps a static verb map — it is a deterministic CI
+stand-in and does not call the BFA — but it too now reads device ids from the
+passed-in topology.
 
 ### 5. No self-registration anywhere
 
@@ -100,12 +126,30 @@ model / fallback (gemini→ollama) / (later) cost + tracing. A dedicated
 - the MCP tool contract (synchronous, `{ok,state}` echo)
 - the JWT-forwarding chain (BFF → orchestrator → A2A → agent → MCP → BFF)
 
-## Migration order
+## Migration order (as shipped)
 
-1. `sh-common` v0.2.0 (drop `registration_client`); tag; bump refs everywhere.
-2. `sh-bfa`: `CATALOG_SOURCES` pull + index; strip the registry; `/resolve`
-   returns logical names. Rewrite `test_registry.py`.
-3. Agents / MCP: delete self-registration; ensure the descriptor endpoint carries
-   `tags` + `examples`.
-4. `sh-orchestrator`: catalog-first `interpret`; collapse `discover`.
-5. `sh-infra`: `CATALOG_SOURCES` in `compose/core.yml`; re-run e2e.
+1. `sh-common` v0.2.0 — drop `registration_client`; `build_agent_card` takes
+   5-tuple skills `(id, name, description, tags, examples)`; `call_agent` gains
+   `agent_url=`; `mcp_client` resolves via `POST /resolve/tools`. Tagged
+   `v0.2.0`, GitHub Release publishes the wheel. ✅
+2. `sh-bfa` — `catalog.py` pulls each `CATALOG_SOURCES` base URL
+   (`/.well-known/agent-card.json` for A2A, `/tools` for MCP) and rebuilds the
+   BM25 index on boot / `POST /refresh`. Registry, `_pick_instance`,
+   `POST /register`, `registry.py`, `client_host.py` deleted. `/resolve*` returns
+   `{kind, service, url, id, name, description, tags, examples, score}`. ✅
+3. Agents / MCP — `registration.py` → `skills.py` / `tools_catalog.py` (static
+   descriptor lists); no lifespan, no heartbeat. Agent card + `/tools` carry
+   `tags` + `examples` (a2a-sdk serializes them natively). ✅
+4. `sh-mcp` — `home://devices` flattens `actions` + `params` from the announced
+   descriptor. `sh-orchestrator` — `interpret` templatized + topology-derived
+   (decision 4, narrowed). ✅
+5. `sh-infra` — `CATALOG_SOURCES` in `compose/core.yml`; `bfa` `depends_on` the
+   agents + `home-mcp` (it pulls their cards), and those services **lost** their
+   `depends_on bfa` (the old registration edge) to break the cycle. `e2e/`
+   updated for catalog-first (`test_failures.py` polls `/resolve/agents`). ✅
+
+## Deferred
+
+- BFA-menu-driven `interpret` + `discover` collapse (decision 4, original form).
+- LLM access through `sh-common` (decision 6) — no agent reasons yet.
+- Periodic catalog refresh on a timer (only boot + `POST /refresh` today).
