@@ -9,36 +9,40 @@ BFA down, MCP down, and an invalid device id against a live agent.
 
 import subprocess
 import time
-from pathlib import Path
 
 import httpx
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+from conftest import COMPOSE_FILES, REPO_ROOT
 
 
 def _wait_for_capability(bfa_url: str, capability: str, timeout_seconds: float = 15.0) -> None:
-    """Polls the BFA until a healthy agent for `capability` is registered.
+    """Polls the BFA until it resolves an agent for `capability` from its catalog.
 
     Makes this test independent of the exact timing/ordering of the other
     failure tests in this file (which stop/start services), rather than
-    relying on a fixed sleep after restart.
+    relying on a fixed sleep after restart. Catalog-first BFA (spec/13): the
+    resolver is `POST /resolve/agents`, not the old `GET /agents` registry.
     """
     deadline = time.time() + timeout_seconds
     while time.time() < deadline:
-        response = httpx.get(f"{bfa_url}/agents", params={"capability": capability}, timeout=5.0)
+        response = httpx.post(
+            f"{bfa_url}/resolve/agents",
+            json={"query": capability.replace("_", " "), "top_k": 1, "threshold": 0.0},
+            timeout=5.0,
+        )
         if response.status_code == 200 and response.json():
             return
         time.sleep(1)
-    raise AssertionError(f"no agent for capability '{capability}' registered within {timeout_seconds}s")
+    raise AssertionError(f"BFA never resolved an agent for '{capability}' within {timeout_seconds}s")
 
 
 def _stop(service: str) -> None:
-    subprocess.run(["docker", "compose", "stop", service], cwd=REPO_ROOT, check=True)
+    subprocess.run(["docker", "compose", *COMPOSE_FILES, "stop", service], cwd=REPO_ROOT, check=True)
 
 
 def _start(service: str) -> None:
-    subprocess.run(["docker", "compose", "start", service], cwd=REPO_ROOT, check=True)
+    subprocess.run(["docker", "compose", *COMPOSE_FILES, "start", service], cwd=REPO_ROOT, check=True)
     # Give the BFA a moment to be back and (if it restarted) re-pull the catalog.
     time.sleep(6)
 
