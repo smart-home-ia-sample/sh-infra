@@ -9,14 +9,14 @@ end-to-end suite, and the architecture specs. Each service is its own repo.
 |------|-------|------|------|
 | `sh-frontend` | React + Vite | — | Dashboard + AG-UI assistant SPA (built, served by the BFF) |
 | `sh-bff` | Java / Spring Boot | 8080 | edge gateway: SPA + JWT auth + home/device persistence (H2/Postgres) + MQTT + proxy to the orchestrator |
-| `sh-bfa` | Python / FastAPI | 8000 | service registry (heartbeat TTL, round-robin) + BM25 `/resolve` |
+| `sh-bfa` | Python / FastAPI | 8000 | stateless capability catalog (pulled from `CATALOG_SOURCES`) + BM25 `/resolve` → logical service names |
 | `sh-orchestrator` | Python / LangGraph | 8500 | interpret → discover → dispatch (A2A) → validate → AG-UI |
 | `sh-agent-security` | Python / A2A | 8200 | `secure_home`, `check_security`, `lock`/`unlock`/`arm`/`disarm` |
 | `sh-agent-environment` | Python / A2A | 8300 | `check_environment`, `switch_off_nonessential`, `turn_on`/`turn_off`/`set_*`/`open`/`close` |
 | `sh-agent-energy` | Python / A2A | 8400 | `inspect_consumption`, `identify_critical_devices` |
 | `sh-mcp` | Python / MCP | 8100 | thin adapter over the BFF: generic verb tools + `home://*` resources |
 | `sh-device-sim` | Python / paho-mqtt | — | simulated devices; announces each device's capability descriptor over MQTT |
-| `sh-common` | Python lib | — | shared logging / auth / A2A / MCP-client / registration — installed from its repo at a version tag (`v0.1.0`), NOT cloned |
+| `sh-common` | Python lib | — | shared logging / auth / A2A / MCP-client — installed from its repo at a version tag (`v0.2.0`), NOT cloned |
 
 Container images publish to **GitHub Packages** (`ghcr.io/<owner>/sh-*`) from each
 repo's CI on `main`. `sh-common` publishes its wheel as a GitHub Release asset on

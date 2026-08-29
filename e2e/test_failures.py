@@ -1,10 +1,10 @@
 """E2E failure-mode tests against the real docker compose stack.
 
-Duplicate registration and transport-level timeout/retry are already
-covered at the unit/integration level (`bfa/tests/test_routes.py`,
-`shared/python/tests/test_a2a_roundtrip.py`) and are not repeated here.
-This file covers failures that only make sense with real containers:
-BFA down, MCP down, and an invalid device id against a live agent.
+BM25 ranking / empty-catalog behaviour and transport-level timeout/retry are
+already covered at the unit level (`sh-bfa/tests/test_routes.py`,
+`sh-common/tests/test_a2a_roundtrip.py`) and are not repeated here. This file
+covers failures that only make sense with real containers: BFA down, MCP down,
+and an invalid device id against a live agent.
 """
 
 import subprocess

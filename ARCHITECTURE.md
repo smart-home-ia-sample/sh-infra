@@ -4,7 +4,14 @@ Projeto de portfólio: uma casa inteligente simulada controlada por agentes de
 IA, demonstrando LangChain, LangGraph, BFA, A2A, MCP e AG-UI. Sem hardware
 real, sem relação com sistemas legais/contratuais.
 
-Especificação completa em [`.spec/`](.spec/).
+Especificação completa em [`spec/`](spec/).
+
+> **Nota (2026-08-29):** o histórico de fases abaixo é registro de época e usa
+> os caminhos do monorepo antigo (`shared/python/`, `mcp/home/`, `agents/`).
+> Hoje cada serviço é um repo `sh-*` independente e a descoberta é
+> **catalog-first** (o BFA puxa os descritores de `CATALOG_SOURCES`, sem
+> auto-registro nem heartbeat) — ver [`spec/13`](spec/13-catalog-first-discovery.spec.md)
+> e [`docs/architecture.md`](docs/architecture.md) para o estado atual.
 
 ## Status
 

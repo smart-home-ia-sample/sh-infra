@@ -10,6 +10,12 @@ message-driven model. Supersedes the "static home state" assumptions in
 > orchestrator `Capability` Literal) with a capability descriptor the
 > `device-sim` announces per device over MQTT and the BFF persists.
 
+> **Superseded (BFA liveness) by `13-catalog-first-discovery.spec.md`
+> (2026-08-29):** the heartbeat-TTL / `last_seen` / round-robin instance model
+> described below is gone. The BFA is now a stateless catalog pulled from
+> `CATALOG_SOURCES`; `/resolve*` returns logical service names and the platform
+> picks the instance. The BM25 `/resolve` semantics still hold.
+
 ## Goals
 
 - The home (homes, rooms, devices) is **persisted** and **CRUD-editable** by
