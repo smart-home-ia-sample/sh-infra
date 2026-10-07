@@ -3,6 +3,11 @@
 The full **Smart Home AI** stack: `docker compose`, the MQTT broker config, the
 end-to-end suite, and the architecture specs. Each service is its own repo.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/architecture-dark.png">
+  <img src="docs/architecture-light.png" alt="Smart Home AI architecture: the browser talks to sh-bff, which proxies AG-UI to the LangGraph orchestrator; the orchestrator resolves agents via sh-bfa and calls the A2A agents, which act on devices through sh-mcp, the BFF and MQTT.">
+</picture>
+
 ## Repos
 
 | repo | stack | port | role |

@@ -1,13 +1,25 @@
 # Arquitetura
 
-Visão consolidada do sistema. Para o detalhamento de cada fase, ver o
-[`README.md`](../README.md); para os requisitos originais, ver [`.spec/`](../.spec/).
+Visão consolidada do sistema. Para o histórico de fases, ver o
+[`ARCHITECTURE.md`](../ARCHITECTURE.md); para os requisitos e decisões de
+design, ver [`spec/`](../spec/).
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./architecture-dark.png">
+  <img src="./architecture-light.png" alt="Arquitetura do Smart Home AI: o navegador fala com o sh-bff, que repassa o AG-UI ao orquestrador LangGraph; o orquestrador resolve agentes no sh-bfa e chama os agentes A2A, que agem nos dispositivos via sh-mcp, BFF e MQTT.">
+</picture>
+
+> Fonte do diagrama: [`architecture.html`](architecture.html) (SVG; o comando
+> para regerar os PNGs com o Chrome headless está no comentário do topo).
 
 ## Fluxo de ponta a ponta
 
 ```
-Frontend (React)
-   │  POST /converse | POST /agui/run (SSE) | GET /home-status
+Navegador (SPA sh-frontend, servida pelo BFF)
+   │  POST /auth/login · GET /api/home-status (SSE) · POST /api/agui/run (SSE)
+   ▼
+BFF (Java/Spring) ── JWT, banco H2/Postgres, read-model MQTT
+   │  /api/agui/run repassado em streaming
    ▼
 Orchestrator (LangGraph + LangChain)
    │  descoberta de agentes/MCP por capability
@@ -18,8 +30,14 @@ BFA (catálogo puxado de CATALOG_SOURCES, ranking BM25 por capability)
    │        │
    │        └──▶ Home MCP (streamable-http via SDK oficial `mcp`)
    │
-   └──▶ Home MCP (chamado também diretamente pelo Orchestrator, ex. `home://events`)
+   └──▶ Home MCP (chamado também diretamente pelo Orchestrator: topologia e conferência do efeito)
+
+Home MCP ──REST──▶ BFF ──MQTT──▶ Mosquitto ◀──MQTT── device-sim
 ```
+
+O Dashboard lê o estado dos dispositivos direto do BFF (`/api/home-status`,
+alimentado por MQTT), sem passar pela IA. Só o chat do assistente chega ao
+Orchestrator, e sempre via BFF, para o navegador ver uma única origem.
 
 O Orchestrator nunca fala com Security/Environment/Energy/Home MCP por
 endereço fixo: descobre cada um via BFA (`POST /resolve/agents` ou
@@ -28,17 +46,25 @@ lógico** do serviço (`http://{service}`), montado a partir do catálogo que
 ele mesmo puxou de `CATALOG_SOURCES` — nenhum serviço autodeclara nem
 registra sua própria URL.
 
+O Home MCP não guarda estado: é um adaptador fino sobre o BFF. Comandos
+viram chamadas REST ao BFF, que publica no MQTT; o `device-sim` reage,
+devolve o novo `.../state` e anuncia o descritor de capabilities de cada
+dispositivo, que o BFF persiste.
+
 ## Serviços e portas
 
-| Serviço      | Porta | Protocolo de entrada          | Papel                                             |
-|--------------|-------|--------------------------------|----------------------------------------------------|
-| bfa          | 8000  | REST (FastAPI)                 | Catálogo de capabilities (pull) + `/resolve` BM25  |
-| home-mcp     | 8100  | MCP (streamable-http)          | Estado simulado da casa: tools, resources, prompts |
-| security     | 8200  | A2A (JSON-RPC)                 | Trancar porta, armar alarme, `secure_home`         |
-| environment  | 8300  | A2A (JSON-RPC)                 | Luzes, temperatura, cortinas, `check_environment`  |
-| energy       | 8400  | A2A (JSON-RPC)                 | Consumo, `identify_critical_devices`               |
-| orchestrator | 8500  | REST + AG-UI (SSE)             | Interpreta linguagem natural, orquestra os agentes  |
-| front        | 3000  | HTTP (nginx servindo build Vite)| Dashboard, Assistant, Agent Activity                |
+| Serviço      | Porta | Protocolo de entrada           | Papel                                                        |
+|--------------|-------|--------------------------------|--------------------------------------------------------------|
+| bff          | 8080  | HTTP (SPA + `/api/**`, JWT)    | Borda única: serve a SPA, autentica, persiste a casa, MQTT, proxy do assistente |
+| bfa          | 8000  | REST (FastAPI)                 | Catálogo de capabilities (pull) + `/resolve` BM25             |
+| home-mcp     | 8100  | MCP (streamable-http)          | Tools de verbo genéricas + resources `home://*` sobre o BFF   |
+| security     | 8200  | A2A (JSON-RPC)                 | Trancar porta, armar alarme, `secure_home`                    |
+| environment  | 8300  | A2A (JSON-RPC)                 | Luzes, temperatura, cortinas, `check_environment`             |
+| energy       | 8400  | A2A (JSON-RPC)                 | Consumo, `identify_critical_devices`                          |
+| orchestrator | 8500  | REST + AG-UI (SSE)             | Interpreta linguagem natural, orquestra os agentes            |
+| device-sim   | —     | MQTT                           | Dispositivos simulados; anuncia capabilities                  |
+| mosquitto    | 1883  | MQTT                           | Broker entre BFF e dispositivos                               |
+| ollama       | 11434 | HTTP                           | LLM local (`LLM_PROVIDER=ollama`; o padrão é `mock`)          |
 
 ## Por que cada protocolo usa o SDK oficial
 
@@ -83,10 +109,13 @@ sozinho.
 ## LangGraph do Orchestrator
 
 ```
-START → interpret → discover → plan → dispatch → collect → validate → (recovery_explain | final)
+START → interpret ─┬─▶ chitchat → END
+                   └─▶ discover → plan → dispatch → collect → validate → (recovery_explain | final)
 ```
 
-`validate` é o único branch condicional real: confere o efeito da mutação
+Há dois branches condicionais. Depois de `interpret`, conversa fiada
+(saudações etc.) vai direto para `chitchat` e termina, sem acionar agentes.
+Em `validate`, o grafo confere o efeito da mutação
 contra o que o Home MCP de fato retornou (nunca confia na alegação do
 LLM/agente). Qualquer falha — comando não reconhecido, capability sem
 agente saudável, efeito não confirmado — cai em `recovery_explain`, que
