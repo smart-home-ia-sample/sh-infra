@@ -1,0 +1,179 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<!-- Source for architecture-{light,dark}.png. Render with headless Chrome:
+     chrome --headless --hide-scrollbars --force-device-scale-factor=2 --window-size=1400,880 \
+            --screenshot=architecture-light.png "file:///.../architecture.html"
+     Append #dark to the URL for the dark variant. -->
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #59636e; --group: #f6f8fa; --group-stroke: #d1d9e0;
+    --py: #dbeafe; --py-s: #2563eb; --java: #ffedd5; --java-s: #ea580c; --web: #ccfbf1; --web-s: #0d9488;
+    --infra: #f1f5f9; --infra-s: #64748b; --ai: #f3e8ff; --ai-s: #9333ea;
+  }
+  :root.dark {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #9198a1; --group: #151b23; --group-stroke: #3d444d;
+    --py: #172554; --py-s: #60a5fa; --java: #431407; --java-s: #fb923c; --web: #042f2e; --web-s: #2dd4bf;
+    --infra: #1e293b; --infra-s: #94a3b8; --ai: #3b0764; --ai-s: #c084fc;
+  }
+  html, body { margin: 0; background: var(--bg); }
+  svg { display: block; font-family: "Segoe UI", -apple-system, Helvetica, Arial, sans-serif; }
+  .title { font-size: 26px; font-weight: 700; fill: var(--fg); }
+  .subtitle { font-size: 14px; fill: var(--muted); }
+  .name { font-size: 17px; font-weight: 700; fill: var(--fg); }
+  .desc { font-size: 12.5px; fill: var(--muted); }
+  .lbl { font-size: 12px; fill: var(--muted); font-weight: 600; }
+  .grp { font-size: 12px; font-weight: 700; fill: var(--muted); letter-spacing: .08em; }
+  .group { fill: var(--group); stroke: var(--group-stroke); stroke-dasharray: 5 4; }
+  .py { fill: var(--py); stroke: var(--py-s); }
+  .java { fill: var(--java); stroke: var(--java-s); }
+  .web { fill: var(--web); stroke: var(--web-s); }
+  .infra { fill: var(--infra); stroke: var(--infra-s); }
+  .ai { fill: var(--ai); stroke: var(--ai-s); }
+  rect.n { stroke-width: 2; }
+  .edge { fill: none; stroke: var(--line); stroke-width: 2; }
+  .dash { stroke-dasharray: 6 5; }
+  .lblbg { fill: var(--bg); }
+</style>
+</head>
+<body>
+<script>if (location.hash === '#dark') document.documentElement.classList.add('dark');</script>
+<svg width="1400" height="880" viewBox="0 0 1400 880" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="var(--line)"/>
+    </marker>
+  </defs>
+
+  <text class="title" x="40" y="48">Smart Home AI — architecture</text>
+  <text class="subtitle" x="40" y="72">Natural-language commands → LangGraph orchestrator → A2A agents → MCP → devices over MQTT</text>
+
+  <!-- groups -->
+  <rect class="group" x="20" y="250" width="580" height="400" rx="14"/>
+  <text class="grp" x="36" y="272">EDGE</text>
+  <rect class="group" x="650" y="96" width="720" height="640" rx="14"/>
+  <text class="grp" x="666" y="118">AI LAYER</text>
+  <rect class="group" x="20" y="680" width="580" height="140" rx="14"/>
+  <text class="grp" x="36" y="702">PHYSICAL LAYER (SIMULATED)</text>
+
+  <!-- edges (drawn first so nodes sit on top) -->
+  <!-- browser -> bff -->
+  <path class="edge" d="M240 390 H318" marker-end="url(#a)"/>
+  <!-- bff -> orchestrator (AG-UI) / orchestrator -> mcp (topology + effect check) -->
+  <path class="edge" d="M570 390 H678" marker-end="url(#a)"/>
+  <path class="edge" d="M930 450 H1000 V640 H1068" marker-end="url(#a)"/>
+  <!-- bff -> db -->
+  <path class="edge" d="M380 470 V572 H242" marker-end="url(#a)"/>
+  <!-- bff <-> mosquitto -->
+  <path class="edge" d="M500 472 V718" marker-start="url(#a)" marker-end="url(#a)"/>
+  <!-- device-sim <-> mosquitto -->
+  <path class="edge" d="M242 752 H438" marker-start="url(#a)" marker-end="url(#a)"/>
+  <!-- orchestrator -> bfa -->
+  <path class="edge" d="M805 310 V222" marker-end="url(#a)"/>
+  <!-- orchestrator -> llm -->
+  <path class="edge" d="M805 470 V578" marker-end="url(#a)"/>
+  <!-- orchestrator -> agents (A2A) -->
+  <path class="edge" d="M930 390 H1048" marker-end="url(#a)"/>
+  <!-- bfa <- pulls catalog from agents + mcp -->
+  <path class="edge dash" d="M1050 170 H932" marker-end="url(#a)"/>
+  <path class="edge dash" d="M1340 660 H1356 V170 H1340"/>
+  <!-- agents -> mcp -->
+  <path class="edge" d="M1195 522 V598" marker-end="url(#a)"/>
+  <!-- mcp -> bff (REST) -->
+  <path class="edge" d="M1070 700 V700 H620 V450 H572" marker-end="url(#a)"/>
+
+  <!-- edge labels -->
+  <g class="lbl">
+    <rect class="lblbg" x="246" y="366" width="66" height="18"/><text x="250" y="379">HTTPS</text>
+    <text x="250" y="410">JWT</text>
+    <text x="584" y="380">AG-UI (SSE)</text>
+    <text x="1008" y="560">MCP</text><text x="1008" y="576">topology,</text><text x="1008" y="592">verify</text>
+    <text x="256" y="590">JPA</text>
+    <text x="510" y="600">MQTT</text>
+    <text x="320" y="744">MQTT</text>
+    <text x="815" y="270">/resolve</text>
+    <text x="815" y="530">LLM</text>
+    <text x="960" y="380">A2A</text>
+    <text x="944" y="160">pulls catalog</text>
+    <text x="1205" y="566">MCP</text>
+    <rect class="lblbg" x="720" y="691" width="150" height="18"/><text x="726" y="705">REST (device commands)</text>
+  </g>
+
+  <!-- nodes -->
+  <rect class="n web" x="40" y="330" width="200" height="120" rx="10"/>
+  <text class="name" x="56" y="362">sh-frontend</text>
+  <text class="desc" x="56" y="384">React 19 + Vite SPA</text>
+  <text class="desc" x="56" y="402">Dashboard</text>
+  <text class="desc" x="56" y="420">AG-UI assistant chat</text>
+
+  <rect class="n java" x="320" y="310" width="250" height="160" rx="10"/>
+  <text class="name" x="336" y="342">sh-bff</text>
+  <text class="desc" x="336" y="364">Java / Spring Boot · :8080</text>
+  <text class="desc" x="336" y="388">serves the SPA · JWT auth</text>
+  <text class="desc" x="336" y="406">home / room / device CRUD</text>
+  <text class="desc" x="336" y="424">MQTT read-model</text>
+  <text class="desc" x="336" y="442">proxy to orchestrator</text>
+
+  <rect class="n infra" x="40" y="540" width="200" height="64" rx="10"/>
+  <text class="name" x="56" y="568">H2 / Postgres</text>
+  <text class="desc" x="56" y="589">home database</text>
+
+  <rect class="n infra" x="440" y="720" width="140" height="64" rx="10"/>
+  <text class="name" x="456" y="748">Mosquitto</text>
+  <text class="desc" x="456" y="769">MQTT broker</text>
+
+  <rect class="n py" x="40" y="720" width="200" height="64" rx="10"/>
+  <text class="name" x="56" y="748">sh-device-sim</text>
+  <text class="desc" x="56" y="769">announces capabilities</text>
+
+  <rect class="n py" x="680" y="310" width="250" height="160" rx="10"/>
+  <text class="name" x="696" y="342">sh-orchestrator</text>
+  <text class="desc" x="696" y="364">Python / LangGraph · :8500</text>
+  <text class="desc" x="696" y="388">interpret → discover</text>
+  <text class="desc" x="696" y="406">→ dispatch → validate</text>
+  <text class="desc" x="696" y="424">streams AG-UI events</text>
+
+  <rect class="n py" x="680" y="130" width="250" height="90" rx="10"/>
+  <text class="name" x="696" y="160">sh-bfa</text>
+  <text class="desc" x="696" y="182">Backend-for-Agents · :8000</text>
+  <text class="desc" x="696" y="200">capability catalog + BM25 resolver</text>
+
+  <rect class="n ai" x="680" y="580" width="250" height="80" rx="10"/>
+  <text class="name" x="696" y="610">LLM</text>
+  <text class="desc" x="696" y="632">mock (default) · Ollama · Gemini</text>
+
+  <rect class="group" x="1050" y="130" width="290" height="390" rx="12"/>
+  <text class="grp" x="1066" y="152">A2A AGENTS</text>
+  <rect class="n py" x="1070" y="168" width="250" height="100" rx="10"/>
+  <text class="name" x="1086" y="198">sh-agent-security</text>
+  <text class="desc" x="1086" y="220">:8200 · locks, alarm</text>
+  <text class="desc" x="1086" y="238">secure_home</text>
+  <rect class="n py" x="1070" y="284" width="250" height="100" rx="10"/>
+  <text class="name" x="1086" y="314">sh-agent-environment</text>
+  <text class="desc" x="1086" y="336">:8300 · lights, climate, blinds</text>
+  <text class="desc" x="1086" y="354">switch_off_nonessential</text>
+  <rect class="n py" x="1070" y="400" width="250" height="100" rx="10"/>
+  <text class="name" x="1086" y="430">sh-agent-energy</text>
+  <text class="desc" x="1086" y="452">:8400 · consumption</text>
+  <text class="desc" x="1086" y="470">identify_critical_devices</text>
+
+  <rect class="n py" x="1070" y="600" width="270" height="110" rx="10"/>
+  <text class="name" x="1086" y="630">sh-mcp</text>
+  <text class="desc" x="1086" y="652">Home MCP server · :8100</text>
+  <text class="desc" x="1086" y="670">generic verb tools (turn_on, lock…)</text>
+  <text class="desc" x="1086" y="688">home://* resources</text>
+
+  <!-- legend -->
+  <g transform="translate(650,770)">
+    <rect class="n py" x="0" y="0" width="16" height="16" rx="3"/><text class="desc" x="24" y="13">Python</text>
+    <rect class="n java" x="90" y="0" width="16" height="16" rx="3"/><text class="desc" x="114" y="13">Java</text>
+    <rect class="n web" x="170" y="0" width="16" height="16" rx="3"/><text class="desc" x="194" y="13">TypeScript</text>
+    <rect class="n infra" x="280" y="0" width="16" height="16" rx="3"/><text class="desc" x="304" y="13">Infrastructure</text>
+    <rect class="n ai" x="410" y="0" width="16" height="16" rx="3"/><text class="desc" x="434" y="13">Model</text>
+    <path class="edge dash" d="M500 8 H540"/><text class="desc" x="548" y="13">catalog pull</text>
+    <text class="desc" x="0" y="44">All Python services share sh-common (logging, correlation ids, auth, A2A + MCP clients).</text>
+  </g>
+</svg>
+</body>
+</html>
